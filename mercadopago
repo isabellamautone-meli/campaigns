@@ -1,0 +1,28 @@
+SELECT
+extract( month from DATE_ADD(PAY.PAY_APPROVED_DATETIME, INTERVAL 1 HOUR) ) as mes,
+sum(cpn.BEN_AMOUNT)
+/*
+pay.pay_payment_id as payment_id,
+ CAST(DATE_ADD(PAY.PAY_APPROVED_DATETIME, INTERVAL 1 HOUR) AS DATE) AS Fecha,
+pay.PAY_CCD_INSTALLMENTS_QTY as Cuotas,
+pay.PAY_CCD_FIRST_SIX_DIGITS AS Bines,
+pay.PAY_CCD_LAST_FOUR_DIGITS AS ultimos_4_digitos,
+pay.PAY_CCD_AUTHORIZATION_CODE AS codigo_autorizacion,
+pay.pay_transaction_amt AS monto_aplicable,
+cpn.BEN_AMOUNT as descuento,
+pay.PAY_SHIPPING_COST_AMT + pay.PAY_TAXES_AMT as Otros_cargos,
+pay.pay_transaction_amt + pay.PAY_SHIPPING_COST_AMT + pay.PAY_TAXES_AMT - cpn.BEN_AMOUNT as monto_banco,
+pay_payment_method_type_id as tipo_de_tarjeta,
+pay_payment_method_id as sello,
+pay.PAY_STATUS_ID
+*/
+FROM `meli-bi-data.WHOWNER.BT_MP_DISB_BENEFITS` cpn
+LEFT JOIN WHOWNER.BT_MP_PAY_PAYMENTS AS pay ON pay.pay_payment_id = cpn.BEN_OPERATION_ID
+WHERE
+pay.pay_status_id = 'approved'
+AND BEN_REFERENCE_ID IN ('11633254')
+and CAST(DATE_ADD(PAY.PAY_APPROVED_DATETIME, INTERVAL 1 HOUR) AS DATE)>='2025-09-01'
+and CAST(DATE_ADD(PAY.PAY_APPROVED_DATETIME, INTERVAL 1 HOUR) AS DATE)<'2025-09-11'
+and pay.SIT_SITE_ID='MLU'
+group by 1
+order by 1;
