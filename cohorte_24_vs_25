@@ -1,0 +1,40 @@
+with ML_2024_clients AS ( -- clientes que hicieron compras en este periodo en 2024
+  SELECT DISTINCT
+    CUS_CUST_ID_BUY
+  FROM `meli-bi-data.WHOWNER.BT_MP_PAY_PAYMENTS` P
+  -- INNER JOIN MC_discount_ML_clients M ON M.buyer_id = CUS_CUST_ID_BUY
+  WHERE
+    SIT_SITE_ID = 'MLU'
+    AND TPV_flag = 1
+    AND PAY_STATUS_ID IN ('approved','in_mediation')
+    AND pay_payment_method_id IN ('master','debmaster','oca')
+    AND TPV_SEGMENT_ID in ('ON')
+    AND PAY_MOVE_DATE >= '2024-06-01'
+      AND PAY_MOVE_DATE < '2024-10-01'
+  )
+, ML_clients_with_purchase_in_2025_and_2024 as (
+SELECT distinct
+P.CUS_CUST_ID_BUY
+FROM `meli-bi-data.WHOWNER.BT_MP_PAY_PAYMENTS` P
+ INNER JOIN ML_2024_clients M ON M.CUS_CUST_ID_BUY = P.CUS_CUST_ID_BUY
+ WHERE 1=1
+    AND SIT_SITE_ID = 'MLU'
+    AND TPV_flag = 1
+    AND PAY_STATUS_ID IN ('approved','in_mediation')
+   AND pay_payment_method_id IN ('master','debmaster','oca')
+    AND TPV_SEGMENT_ID in ('ON')
+    AND PAY_MOVE_DATE >= '2025-06-01'
+    AND PAY_MOVE_DATE < '2025-10-01')
+SELECT 
+  sum(pay_total_paid_dol_amt) AS TPV_USD,
+  count(distinct P.CUS_CUST_ID_BUY) AS CLIENTS
+FROM `meli-bi-data.WHOWNER.BT_MP_PAY_PAYMENTS` P
+ INNER JOIN ML_clients_with_purchase_in_2025_and_2024 M ON M.CUS_CUST_ID_BUY = P.CUS_CUST_ID_BUY
+ WHERE 1=1
+    AND SIT_SITE_ID = 'MLU'
+    AND TPV_flag = 1
+    AND PAY_STATUS_ID IN ('approved','in_mediation')
+   AND pay_payment_method_id IN ('master','debmaster','oca')
+    AND TPV_SEGMENT_ID in ('ON')
+    AND PAY_MOVE_DATE >= '2024-06-01'
+    AND PAY_MOVE_DATE < '2024-10-01'
