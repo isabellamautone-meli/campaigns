@@ -1,6 +1,6 @@
-WITH MC_discount_clients AS (
+WITH  oca_discount_payments AS (
   SELECT DISTINCT
-    O.ORD_BUYER.ID AS buyer_id
+    PAY_PAYMENT_ID
   FROM `meli-bi-data.WHOWNER.BT_ORD_ORDERS` O
   LEFT JOIN `meli-bi-data.WHOWNER.BT_MKP_BENEFITS_DISCOUNT` BEN
     ON BEN.SIT_SITE_ID = "MLU"
@@ -13,11 +13,30 @@ WITH MC_discount_clients AS (
     AND O.ORD_ORDER_PROXIMITY_FLG = FALSE
     AND O.ORD_ORDER_MSHOPS_FLG = FALSE
     AND BEN.CAMPAIGN_ID IN (
-      12228157, 12228151, 12229842, 12228161,
-      12281229, 12280947, 12320704, 12281009,
-      12396146, 12396172, 12327085, 12396188
+      12389297,11530222,12244467
+    )),
+
+MC_discount_clients AS (
+  SELECT DISTINCT
+    O.ORD_BUYER.ID AS buyer_id
+  FROM `meli-bi-data.WHOWNER.BT_ORD_ORDERS` O
+  LEFT JOIN `meli-bi-data.WHOWNER.BT_MKP_BENEFITS_DISCOUNT` BEN
+    ON BEN.SIT_SITE_ID = "MLU"
+   AND O.ORD_ORDER_ID = BEN.ORD_ORDER_ID
+  WHERE
+    O.SIT_SITE_ID = "MLU"
+    AND CAST(DATE_ADD(O.ORD_CLOSED_DTTM, INTERVAL 1 HOUR) AS DATE) >= '2025-01-01'
+    AND O.ORD_GMV_FLG = TRUE
+    AND O.ORD_TGMV_FLG = TRUE
+    AND O.ORD_ORDER_PROXIMITY_FLG = FALSE
+    AND O.ORD_ORDER_MSHOPS_FLG = FALSE
+    AND BEN.CAMPAIGN_ID IN (
+      12228157,12228151,12229842,12228161,
+      12281229,12280947,12320704,12281009,
+      12396146,12396172,12327085,12396188,
+      12406523,12406601,12494660,12494730,
+      12541558,12435263
     )
-  GROUP BY ALL
 
   UNION ALL
 
@@ -28,46 +47,74 @@ WITH MC_discount_clients AS (
     ON pay.pay_payment_id = cpn.BEN_OPERATION_ID
   WHERE
     pay.pay_status_id = 'approved'
-    AND BEN_REFERENCE_ID IN ('11633254')
+    AND cpn.BEN_REFERENCE_ID IN ('11633254')
     AND CAST(DATE_ADD(PAY.PAY_APPROVED_DATETIME, INTERVAL 1 HOUR) AS DATE) >= '2025-05-01'
-    AND CAST(DATE_ADD(PAY.PAY_APPROVED_DATETIME, INTERVAL 1 HOUR) AS DATE) < '2025-09-01'
+    AND CAST(DATE_ADD(PAY.PAY_APPROVED_DATETIME, INTERVAL 1 HOUR) AS DATE) < '2025-10-01'
     AND pay.SIT_SITE_ID = 'MLU'
-)
+),
 
-, aux_1 AS (
+/* =========================
+   Activos por mes y mundo
+   ========================= */
+
+
+monthly_active AS (
   SELECT DISTINCT
-    CUS_CUST_ID_BUY,
-    EXTRACT(MONTH FROM PAY_MOVE_DATE) AS month,
-    CASE WHEN TPV_SEGMENT_ID = 'ON' THEN 'Mercado libre' ELSE 'Mercado pago' END AS mundo_meli,
-    pay_total_paid_amt AS TPV_UY,
-    pay_total_paid_dol_amt AS TPV_USD
-  FROM `meli-bi-data.WHOWNER.BT_MP_PAY_PAYMENTS`
-  INNER JOIN MC_discount_clients M
-    ON M.buyer_id = CUS_CUST_ID_BUY
+    p.CUS_CUST_ID_BUY AS buyer_id,
+    DATE_TRUNC(p.PAY_MOVE_DATE, MONTH) AS month_start,
+    CASE WHEN p.TPV_SEGMENT_ID = 'ON' THEN 'Mercado libre' ELSE 'Mercado pago' END AS mundo_meli
+  FROM `meli-bi-data.WHOWNER.BT_MP_PAY_PAYMENTS` p
+  INNER JOIN MC_discount_clients m -- Cambio de LEFT a INNER en funcion dsi quiero el general o no
+    ON m.buyer_id = p.CUS_CUST_ID_BUY
+    left join oca_discount_payments o
+    on o.pay_payment_id = p.pay_payment_id
   WHERE
-    SIT_SITE_ID = 'MLU'
-    AND TPV_flag = 1
-    AND PAY_STATUS_ID IN ('approved','in_mediation')
-    AND pay_payment_method_id IN ('master','debmaster','oca')
-    AND PAY_MOVE_DATE >= '2025-01-01'
-)
+    p.SIT_SITE_ID = 'MLU'
+    AND p.TPV_flag = 1
+    AND p.PAY_STATUS_ID IN ('approved','in_mediation')
+    AND p.pay_payment_method_id IN ('master','debmaster','oca')
+    AND p.TPV_SEGMENT_ID in ('ON','Wallet')
+    -- usa tu misma ventana (ajusta si querés 2025 completo)
+    AND p.PAY_MOVE_DATE >= '2025-01-01'
+    AND p.PAY_MOVE_DATE <  '2025-10-01'
+    AND o.pay_payment_id is null
+   --  AND m.buyer_id is null -- Desmuteo en funcion de si quiero el general o no
+),
 
-, aux_2 AS (
+/* ==========================================
+   Numerador: compradores de t que ya estaban en t-1  (Compradores de febrero que estaban en enero)
+   Denominador: compradores en t-1    (Compradores de enero)
+   ========================================== */
+retained AS (
   SELECT
-    CUS_CUST_ID_BUY,
-    month,
+    c.month_start,
+    c.mundo_meli,
+    COUNT(DISTINCT IF(p.buyer_id IS NOT NULL, c.buyer_id, NULL)) AS retained_buyers
+  FROM monthly_active c
+  LEFT JOIN monthly_active p
+    ON p.buyer_id   = c.buyer_id
+   AND p.mundo_meli = c.mundo_meli
+   AND p.month_start = DATE_SUB(c.month_start, INTERVAL 1 MONTH)
+  GROUP BY c.month_start, c.mundo_meli
+),
+
+prev_counts AS (
+  SELECT
+    DATE_ADD(month_start, INTERVAL 1 MONTH) AS month_start, -- re-etiquetamos como "mes t"
     mundo_meli,
-    SUM(TPV_UY) AS TPV_UY,
-    SUM(TPV_USD) AS TPV_USD
-  FROM aux_1
-  GROUP BY ALL
+    COUNT(DISTINCT buyer_id) AS prev_buyers                  -- |A_{t-1}|
+  FROM monthly_active
+  GROUP BY 1,2
 )
 
+/* =========================
+   Salida final (t, mundo, %)
+   ========================= */
 SELECT
-  month,
-  mundo_meli,
-  AVG(TPV_UY) AS TPV_UY,
-  AVG(TPV_USD) AS TPV_USD
-FROM aux_2
-GROUP BY ALL
+   r.mundo_meli,
+  FORMAT_DATE('%Y-%m', r.month_start) AS month,
+  SAFE_DIVIDE(r.retained_buyers, pc.prev_buyers) AS month_retention
+FROM retained r
+LEFT JOIN prev_counts pc
+  USING (month_start, mundo_meli)
 ORDER BY 1,2;
