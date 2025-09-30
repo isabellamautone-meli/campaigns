@@ -1,0 +1,68 @@
+with MC_discount_clients AS ( -- 9983
+  SELECT DISTINCT
+    CUS_CUST_ID_BUY AS buyer_id
+  FROM `meli-bi-data.WHOWNER.BT_ORD_ORDERS` O
+  LEFT JOIN `meli-bi-data.WHOWNER.BT_MKP_BENEFITS_DISCOUNT` BEN
+    ON BEN.SIT_SITE_ID = "MLU"
+   AND O.ORD_ORDER_ID = BEN.ORD_ORDER_ID
+  WHERE
+    O.SIT_SITE_ID = "MLU"
+    AND CAST(DATE_ADD(O.ORD_CLOSED_DTTM, INTERVAL 1 HOUR) AS DATE) >= '2025-06-01'
+    AND O.ORD_GMV_FLG = TRUE
+    AND O.ORD_TGMV_FLG = TRUE
+    AND O.ORD_ORDER_PROXIMITY_FLG = FALSE
+    AND O.ORD_ORDER_MSHOPS_FLG = FALSE
+    AND BEN.CAMPAIGN_ID IN (
+      12228157,12228151,12229842,12228161,
+      12281229,12280947,12320704,12281009,
+      12396146,12396172,12327085,12396188,
+      12406523,12406601,12494660,12494730,
+      12541558,12435263
+    )
+)
+, payments_2024 as (
+  SELECT 
+  '2024' as year,
+  CUS_CUST_ID_BUY,
+  sum(TPV_DOL_AMT) as TPV_USD,
+  count(distinct PAY_PAYMENT_ID) as payments
+  FROM `meli-bi-data.WHOWNER.BT_MP_PAY_PAYMENTS` P
+  INNER JOIN MC_discount_clients M ON M.buyer_id = CUS_CUST_ID_BUY
+  WHERE
+    SIT_SITE_ID = 'MLU'
+    AND TPV_flag = 1
+    AND PAY_STATUS_ID IN ('approved','in_mediation')
+    AND pay_payment_method_id IN ('master','debmaster','oca')
+    AND TPV_SEGMENT_ID in ('ON')
+    AND PAY_MOVE_DATE >= '2024-06-01'
+      AND PAY_MOVE_DATE < '2024-10-01'
+      group by all
+)
+, payments_2025 as (
+  SELECT 
+  '2025' as year,
+  P.CUS_CUST_ID_BUY,
+  sum(TPV_DOL_AMT) as TPV_USD,
+  count(distinct PAY_PAYMENT_ID) as payments
+  FROM `meli-bi-data.WHOWNER.BT_MP_PAY_PAYMENTS` P
+  INNER JOIN payments_2024 M ON M.CUS_CUST_ID_BUY = P.CUS_CUST_ID_BUY
+  WHERE
+    SIT_SITE_ID = 'MLU'
+    AND TPV_flag = 1
+    AND PAY_STATUS_ID IN ('approved','in_mediation')
+    AND pay_payment_method_id IN ('master','debmaster','oca')
+    AND TPV_SEGMENT_ID in ('ON')
+    AND PAY_MOVE_DATE >= '2025-05-30'
+      AND PAY_MOVE_DATE < '2025-10-01'
+      group by all
+)
+, aux as (Select * from payments_2024
+union all
+Select * from payments_2025)
+SELECT
+year,
+count(distinct   CUS_CUST_ID_BUY ) as clients,
+sum(TPV_USD) as TPV,
+sum(payments) as payments
+from aux
+group by 1
