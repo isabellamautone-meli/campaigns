@@ -1,0 +1,33 @@
+SELECT
+pay_move_date as date,
+CASE
+  WHEN pay_ccd_issuer_id IN(2036, 12398) THEN 'Prepaga'
+  ELSE PAY_PAYMENT_METHOD_TYPE_ID 
+END AS medio,
+pay_payment_method_id as sello,
+Tpv_segment_id AS segment,
+tpv_segment_detail AS segment_detail,
+pay_ccd_installments_qty AS cuotas,  
+CUS_CUST_ID_BUY as buyer,
+CASE WHEN pay_ccd_installments_qty > 1 THEN 'Cuotas'
+     WHEN pay_ccd_installments_qty = 1 THEN '1x'
+     ELSE 'Others MP' 
+END AS cuotas_11x,
+pay_status_id AS status_payment,
+  CASE 
+        WHEN LEFT(CAST(PAY_CCD_FIRST_SIX_DIGITS AS STRING), 6) IN ('466241') THEN 'OCA Blue'
+        WHEN LEFT(CAST(PAY_CCD_FIRST_SIX_DIGITS AS STRING), 6) IN ('542991','421571','466241','491669','491670') THEN 'OCA TC'
+        ELSE 'OTROS'
+    END AS EMISOR,
+
+
+sum(pay_total_paid_amt) AS TPV_UY,
+sum(pay_total_paid_dol_amt) as TPV_USD,
+count(pay_payment_id) AS TPN
+
+FROM meli-bi-data.WHOWNER.BT_MP_PAY_PAYMENTS 
+WHERE
+SIT_SITE_ID = 'MLU'
+AND pay_move_date >= '2024-01-01'
+AND TPV_flag = 1
+GROUP BY 1,2,3,4,5,6,7,8,9,10
