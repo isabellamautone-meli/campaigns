@@ -1,0 +1,30 @@
+with clientes_registrados_santander as (
+SELECT 
+CUS_CUST_ID_BUY
+FROM meli-bi-data.WHOWNER.BT_MP_PAY_PAYMENTS 
+WHERE
+SIT_SITE_ID = 'MLU'
+AND TPV_flag = 1
+AND pay_status_id in ('approved','in_medation')
+AND tpv_segment_id = 'ON'
+AND LEFT(CAST(PAY_CCD_FIRST_SIX_DIGITS AS STRING), 6) IN ('400773','409078','414284','430307','437846','448162','448163','448164','451319','472811','472812','472813','481521','483114','491510','491882','491883','492961','492962','492963','492964','498535','510198','519757','521119','525845','527130','529130','534262','534263','538983','545612','545703','548227','552506')
+AND pay_move_date > '2023-01-01'
+GROUP BY all)
+Select 
+extract(year from pay_move_date) as year,
+s.CUS_CUST_ID_BUY,
+SUM( CASE WHEN LEFT(CAST(PAY_CCD_FIRST_SIX_DIGITS AS STRING), 6) IN ('400773','409078','414284','430307','437846','448162','448163','448164','451319','472811','472812','472813','481521','483114','491510','491882','491883','492961','492962','492963','492964','498535','510198','519757','521119','525845','527130','529130','534262','534263','538983','545612','545703','548227','552506') THEN pay_total_paid_amt  ELSE 0 END) as monto_santander,
+sum(pay_total_paid_amt) AS monto_total,
+Count( distinct CASE WHEN LEFT(CAST(PAY_CCD_FIRST_SIX_DIGITS AS STRING), 6) IN ('400773','409078','414284','430307','437846','448162','448163','448164','451319','472811','472812','472813','481521','483114','491510','491882','491883','492961','492962','492963','492964','498535','510198','519757','521119','525845','527130','529130','534262','534263','538983','545612','545703','548227','552506') THEN pay_payment_id ELSE 0 END) as pagos_santander,
+Count( distinct pay_payment_id) AS pagos_totales
+FROM clientes_registrados_santander s
+inner join meli-bi-data.WHOWNER.BT_MP_PAY_PAYMENTS P ON P.CUS_CUST_ID_BUY = s.CUS_CUST_ID_BUY
+WHERE
+SIT_SITE_ID = 'MLU'
+AND TPV_flag = 1
+AND pay_status_id in ('approved','in_medation')
+AND tpv_segment_id = 'ON'
+AND pay_move_date > '2023-01-01'
+AND extract(month from pay_move_date ) <11
+AND PAY_PAYMENT_METHOD_TYPE_ID in ('credit_card','debit_card','prepaid_card')
+GROUP BY all
