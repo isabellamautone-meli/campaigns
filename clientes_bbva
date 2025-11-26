@@ -1,0 +1,133 @@
+with clientes_registrados_bbva as (
+SELECT 
+CUS_CUST_ID_BUY
+FROM meli-bi-data.WHOWNER.BT_MP_PAY_PAYMENTS 
+WHERE
+SIT_SITE_ID = 'MLU'
+AND TPV_flag = 1
+AND pay_status_id in ('approved','in_medation')
+AND tpv_segment_id = 'ON'
+AND LEFT(CAST(PAY_CCD_FIRST_SIX_DIGITS AS STRING), 6) IN ('401070',
+'410377',
+'423021',
+'423476',
+'426511',
+'441010',
+'450786',
+'458959',
+'460067',
+'491505',
+'493525',
+'493526',
+'521889',
+'524885',
+'525407',
+'527602',
+'531739',
+'532978',
+'547278',
+'549019',
+'451319',
+'491505',
+'423476',
+'521889',
+'527602',
+'549019',
+'547278',
+'531739',
+'524885',
+'532978',
+'525407',
+'493525',
+'410377',
+'401070',
+'450786')
+AND pay_move_date > '2023-01-01'
+GROUP BY all)
+Select 
+extract(year from pay_move_date) as year,
+s.CUS_CUST_ID_BUY,
+pay_payment_method_id as marca,
+SUM( CASE WHEN LEFT(CAST(PAY_CCD_FIRST_SIX_DIGITS AS STRING), 6) IN ('401070',
+'410377',
+'423021',
+'423476',
+'426511',
+'441010',
+'450786',
+'458959',
+'460067',
+'491505',
+'493525',
+'493526',
+'521889',
+'524885',
+'525407',
+'527602',
+'531739',
+'532978',
+'547278',
+'549019',
+'451319',
+'491505',
+'423476',
+'521889',
+'527602',
+'549019',
+'547278',
+'531739',
+'524885',
+'532978',
+'525407',
+'493525',
+'410377',
+'401070',
+'450786') THEN pay_total_paid_amt  ELSE 0 END) as monto_bbva,
+sum(pay_total_paid_amt) AS monto_total,
+Count( distinct CASE WHEN LEFT(CAST(PAY_CCD_FIRST_SIX_DIGITS AS STRING), 6) IN ('401070',
+'410377',
+'423021',
+'423476',
+'426511',
+'441010',
+'450786',
+'458959',
+'460067',
+'491505',
+'493525',
+'493526',
+'521889',
+'524885',
+'525407',
+'527602',
+'531739',
+'532978',
+'547278',
+'549019',
+'451319',
+'491505',
+'423476',
+'521889',
+'527602',
+'549019',
+'547278',
+'531739',
+'524885',
+'532978',
+'525407',
+'493525',
+'410377',
+'401070',
+'450786') THEN pay_payment_id ELSE 0 END) as pagos_bbva,
+Count( distinct pay_payment_id) AS pagos_totales
+FROM clientes_registrados_bbva s
+inner join meli-bi-data.WHOWNER.BT_MP_PAY_PAYMENTS P ON P.CUS_CUST_ID_BUY = s.CUS_CUST_ID_BUY
+WHERE
+SIT_SITE_ID = 'MLU'
+AND TPV_flag = 1
+AND pay_status_id in ('approved','in_medation')
+AND tpv_segment_id = 'ON'
+AND pay_move_date > '2023-01-01'
+AND extract(month from pay_move_date ) <11
+AND PAY_PAYMENT_METHOD_TYPE_ID in ('credit_card','debit_card','prepaid_card')
+GROUP BY all
